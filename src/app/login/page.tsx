@@ -57,6 +57,7 @@ function LoginPageInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [resetSent, setResetSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
@@ -114,31 +115,43 @@ function LoginPageInner() {
   const translateError = (code: string, message?: string) => {
     switch (code) {
       case "auth/invalid-email": return "Please enter a valid email address.";
-      case "auth/email-already-in-use": return "That email is already registered.";
-      case "auth/wrong-password": return "Incorrect password.";
-      case "auth/user-not-found": return "No account found with that email.";
+      case "auth/email-already-in-use": return "That email is already registered. Try logging in or use a different email.";
+      case "auth/wrong-password": return "Incorrect password. Check your password and try again.";
+      case "auth/user-not-found": return "No account found with that email. Please check your email or sign up.";
       case "auth/weak-password": return "Your password is too weak.";
-      case "auth/too-many-requests": return "Too many attempts. Try again later.";
-      case "auth/popup-closed-by-user": return "";
-      case "auth/popup-blocked": return "Popup was blocked. Please allow popups for this site.";
-      case "auth/cancelled-popup-request": return "";
+      case "auth/too-many-requests": return "Too many attempts. Please wait a moment and try again.";
+      case "auth/popup-closed-by-user": return "Sign-in popup was closed. Please try again.";
+      case "auth/popup-blocked": return "Popup was blocked. Please allow popups for this site, or use email/password.";
+      case "auth/cancelled-popup-request": return "Sign-in was cancelled. Please try again.";
+      case "auth/network-request-failed": return "Network error. Check your internet connection and try again.";
+      case "auth/invalid-credential": return "Invalid credentials. Please check your email and password.";
+      case "auth/user-disabled": return "This account has been disabled. Contact support for help.";
       default:
         if (message?.includes("Cross-Origin-Opener-Policy")) {
           return "Browser security policy blocked the popup. Please try again or use email/password login.";
         }
-        return "Something went wrong. Please try again.";
+        if (code?.startsWith("auth/")) {
+          return `Login failed (${code}). Please try again or contact support if this persists.`;
+        }
+        return message || "Something went wrong. Please try again.";
     }
   };
 
   const handleForgotPassword = async () => {
     setError(null);
     if (!email) { setError("Please enter your email first."); return; }
+    if (!emailValid(email)) { setError("Please enter a valid email."); return; }
     if (!auth) { setError("Firebase is not configured."); return; }
     try {
-      await sendPasswordResetEmail(auth, email);
-      alert("Password reset email sent! Check your inbox.");
+      const domain = typeof window !== "undefined" ? window.location.host : "";
+      const actionCodeSettings = {
+        url: `https://${domain}/reset-password`,
+        handleCodeInApp: true,
+      };
+      await sendPasswordResetEmail(auth, email, actionCodeSettings);
+      setResetSent(true);
     } catch (err: any) {
-      setError(err?.message || "Failed to send reset email.");
+      setError(translateError(err?.code, err?.message));
     }
   };
 
@@ -354,17 +367,30 @@ function LoginPageInner() {
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          {mode === "login" && (
+          {error && !resetSent && (
+            <div className="flex items-start gap-3 text-red-600 bg-red-50 border border-red-200 text-sm p-3 rounded-lg" role="alert">
+              <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>{error}</div>
+            </div>
+          )}
+
+          {resetSent && (
+            <div className="text-green-600 bg-green-50 border border-green-200 text-sm p-3 rounded-lg">
+              Password reset email sent! Check your inbox. If you don&apos;t see it, check your spam folder.
+            </div>
+          )}
+
+          {mode === "login" && !resetSent && (
             <button
               type="button"
-              className="text-blue-600 text-sm mt-2 hover:underline"
+              className="text-blue-600 text-sm mt-2 hover:underline text-center w-full"
               onClick={handleForgotPassword}
             >
               Forgot password?
             </button>
           )}
-
-          {error && <p className="text-red-500 text-sm">{error}</p>}
 
           <button
             type="submit"
