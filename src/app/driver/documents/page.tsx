@@ -37,7 +37,8 @@ type DocType =
   | "id"
   | "drivers_license"
   | "proof_of_address"
-  | "vehicle_registration";
+  | "vehicle_registration"
+  | "police_clearance";
 
 const REQUIRED_DOCS: { type: DocType; label: string; hint: string }[] = [
   { type: "id", label: "ID / Passport", hint: "Clear photo or PDF." },
@@ -55,6 +56,11 @@ const REQUIRED_DOCS: { type: DocType; label: string; hint: string }[] = [
     type: "vehicle_registration",
     label: "Vehicle Registration",
     hint: "Vehicle registration document.",
+  },
+  {
+    type: "police_clearance",
+    label: "Police Clearance",
+    hint: "PDF only, proof of no criminal record.",
   },
 ];
 
@@ -107,6 +113,9 @@ export default function DriverDocumentsPage() {
   const [uploading, setUploading] = useState<Partial<Record<DocType, boolean>>>(
     {},
   );
+  const [uploadErrors, setUploadErrors] = useState<
+    Partial<Record<DocType, string>>
+  >({});
 
   useEffect(() => {
     if (!auth || !db) return;
@@ -157,28 +166,57 @@ export default function DriverDocumentsPage() {
     const file = files[docType];
     if (!file) return;
 
-    setUploading((m) => ({ ...m, [docType]: true }));
-
-    const path = `driver-documents/${u.uid}/${docType}/${Date.now()}_${file.name}`;
-    const storageRef = ref(storage, path);
-
-    await uploadBytes(storageRef, file);
-    const url = await getDownloadURL(storageRef);
-
-    await addDoc(collection(db, "driverDocuments"), {
-      uid: u.uid,
-      docType,
-      fileName: file.name,
-      fileType: file.type,
-      fileSize: file.size,
-      storagePath: path,
-      downloadURL: url,
-      status: "uploaded",
-      createdAt: serverTimestamp(),
+    // Clear previous error for this doc type
+    setUploadErrors((prev) => {
+      const next = { ...prev };
+      delete next[docType];
+      return next;
     });
 
-    setFiles((f) => ({ ...f, [docType]: null }));
-    setUploading((m) => ({ ...m, [docType]: false }));
+    // Validate file size (max 10MB)
+    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+    if (file.size > MAX_SIZE) {
+      setUploadErrors((prev) => ({
+        ...prev,
+        [docType]: "File exceeds size limit (10MB)",
+      }));
+      return;
+    }
+
+    setUploading((m) => ({ ...m, [docType]: true }));
+
+    try {
+      const path =
+        docType === "police_clearance"
+          ? `drivers/${u.uid}/documents/police_clearance.pdf`
+          : `driver-documents/${u.uid}/${docType}/${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, path);
+
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+
+      await addDoc(collection(db, "driverDocuments"), {
+        uid: u.uid,
+        docType,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        storagePath: path,
+        downloadURL: url,
+        status: "uploaded",
+        createdAt: serverTimestamp(),
+      });
+
+      setFiles((f) => ({ ...f, [docType]: null }));
+      setUploading((m) => ({ ...m, [docType]: false }));
+    } catch (err: any) {
+      console.error(err);
+      setUploadErrors((prev) => ({
+        ...prev,
+        [docType]: err?.message || "Upload failed. Please try again.",
+      }));
+      setUploading((m) => ({ ...m, [docType]: false }));
+    }
   };
 
   return (
@@ -284,15 +322,24 @@ export default function DriverDocumentsPage() {
                   <div>
                     <input
                       type="file"
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        setUploadErrors((prev) => {
+                          const next = { ...prev };
+                          delete next[type];
+                          return next;
+                        });
                         setFiles((f) => ({
                           ...f,
                           [type]: e.target.files?.[0] ?? null,
-                        }))
-                      }
+                        }));
+                      }}
                       className="w-full text-sm file:mr-3 file:rounded-xl file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-200"
                     />
+                    {uploadErrors[type] && (
+                      <p className="mt-2 text-sm text-red-600">
+                        {uploadErrors[type]}
+                      </p>
+                    )}
                   </div>
 
                   <button

@@ -20,13 +20,15 @@ type DocType =
   | "id"
   | "drivers_license"
   | "proof_of_address"
-  | "vehicle_registration";
+  | "vehicle_registration"
+  | "police_clearance";
 
 const REQUIRED: { type: DocType; label: string }[] = [
   { type: "id", label: "ID / Passport" },
   { type: "drivers_license", label: "Driver's License" },
   { type: "proof_of_address", label: "Proof of Address" },
   { type: "vehicle_registration", label: "Vehicle Registration" },
+  { type: "police_clearance", label: "Police Clearance" },
 ];
 
 type Status = "uploaded" | "approved" | "rejected" | string;
