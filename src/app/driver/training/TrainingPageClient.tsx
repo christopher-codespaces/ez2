@@ -45,6 +45,14 @@ const FALLBACK_VIDEO = "https://www.youtube.com/embed/4WJLlWpzpP0?rel=0";
 // ✅ MVP: 12 modules (reuse video if you don’t have it yet)
 const MODULES: Module[] = [
   {
+    id: "intro",
+    title: "Introduction Video",
+    description: "Watch this introduction before starting the training modules.",
+    durationMins: 3,
+    videoUrl: "https://drive.google.com/file/d/1lV65rONTwQ-oVPuWsoUEJFVk6pJq1ZHl/preview",
+    quiz: { questions: 0, passMark: 0 },
+  },
+  {
     id: "m1",
     title: "Module 1: Introduction & Professional Mindset",
     description:
