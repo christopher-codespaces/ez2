@@ -12,6 +12,12 @@ import {
   updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
+import {
+  getStorage,
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL,
+} from "firebase/storage";
 import { useAuth } from "@/app/context/AuthContext";
 
 type Role = "driver" | "business";
@@ -72,6 +78,9 @@ export default function CompleteSignupPage() {
   const [businessName, setBusinessName] = useState("");
   const [businessLocation, setBusinessLocation] = useState("");
   const [businessDescription, setBusinessDescription] = useState("");
+
+  const [driverDocuments, setDriverDocuments] = useState<File[]>([]);
+  const [driverDocumentsError, setDriverDocumentsError] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -222,6 +231,7 @@ export default function CompleteSignupPage() {
     if (role === "driver") {
       if (!firstName.trim() || !lastName.trim()) { setError("Please enter your first and last name."); return; }
       if (!homeAddress.trim()) { setError("Please enter your home address."); return; }
+      if (driverDocuments.length === 0) { setError("Please upload at least one document."); return; }
     }
     if (role === "business") {
       if (!businessName.trim()) { setError("Please enter your business name."); return; }
@@ -235,12 +245,21 @@ export default function CompleteSignupPage() {
       const phoneValue = normalizeZaPhone(phone);
 
       if (role === "driver") {
+        // Upload Police Clearance PDF for drivers
+        let policeClearanceUrl = "";
+        if (policeClearance) {
+          const storage = getStorage(app);
+          const policeRef = storageRef(storage, `policeClearance/${firebaseUser.uid}/${policeClearance.name}`);
+          await uploadBytes(policeRef, policeClearance);
+          policeClearanceUrl = await getDownloadURL(policeRef);
+        }
         await updateDoc(ref, {
           role, phone: phoneValue,
           firstName: firstName.trim(), lastName: lastName.trim(),
           name: `${firstName.trim()} ${lastName.trim()}`.trim(),
           homeAddress: homeAddress.trim(), homeLat: homeLat || "", homeLon: homeLon || "",
           businessName: "", businessLocation: "", businessDescription: "",
+          policeClearanceUrl,
           updatedAt: Date.now(), lastLoginAt: serverTimestamp(),
         });
       } else {
@@ -318,6 +337,81 @@ export default function CompleteSignupPage() {
           )}
 
           {showDriverFields && (
+            <div className="space-y-6">
+              {/* Personal & Address Information */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-black">Personal Information</h3>
+                <div>
+                  <label className="block text-black font-medium mb-1">Phone Number</label>
+                  <input type="tel" className="w-full text-black p-3 border rounded-lg"
+                    placeholder="e.g. 0821234567 or +27821234567"
+                    value={phone} onChange={(e) => setPhone(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-black font-medium mb-1">First Name</label>
+                  <input type="text" className="w-full text-black p-3 border rounded-lg"
+                    placeholder="e.g. John" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-black font-medium mb-1">Last Name</label>
+                  <input type="text" className="w-full text-black p-3 border rounded-lg"
+                    placeholder="e.g. Doe" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+                </div>
+                <div className="relative">
+                  <label className="block text-black font-medium mb-1">Home Address</label>
+                  <input type="text" className="w-full text-black p-3 border rounded-lg"
+                    placeholder="Start typing your address…" value={addressQuery} autoComplete="off"
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setAddressQuery(v); setHomeAddress(v); setHomeLat(""); setHomeLon("");
+                    }} />
+                  {addressLoading && <p className="text-xs text-gray-500 mt-1">Searching addresses…</p>}
+                  {addressSuggestions.length > 0 && (
+                    <div className="absolute z-10 mt-2 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-auto">
+                      {addressSuggestions.map((s) => (
+                        <button key={`${s.lat}-${s.lon}-${s.label}`} type="button"
+                          className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
+                          onClick={() => { setHomeAddress(s.label); setAddressQuery(s.label); setHomeLat(s.lat); setHomeLon(s.lon); setAddressSuggestions([]); }}>
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {homeLat && homeLon && <p className="text-xs text-gray-500 mt-1">Location captured (lat/lon)</p>}
+                </div>
+              </div>
+
+              {/* Driver Documents Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-black">Driver Documents</h3>
+                <div>
+                  <label className="block text-black font-medium mb-1">Upload documents (any file type) *</label>
+                  <input type="file" multiple className="w-full text-black p-2 border rounded-lg"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files ?? []);
+                      setDriverDocuments(files);
+                      if (files.length === 0) {
+                        setDriverDocumentsError("Please upload at least one document.");
+                      } else {
+                        setDriverDocumentsError(null);
+                      }
+                    }} />
+                  {driverDocumentsError && <p className="text-red-500 text-sm mt-1">{driverDocumentsError}</p>}
+                  {!driverDocuments.length && <p className="text-sm text-gray-500 mt-1">Please upload your documents.</p>}
+                  {driverDocuments.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-sm text-green-600">Documents selected:</p>
+                      <ul className="mt-1">
+                        {driverDocuments.map((doc, idx) => (
+                          <li key={idx} className="text-sm text-gray-700">{doc.name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
             <div className="space-y-4">
               <div>
                 <label className="block text-black font-medium mb-1">Phone Number</label>

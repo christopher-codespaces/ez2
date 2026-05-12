@@ -11,7 +11,8 @@
       "Bash(rm \"C:/Users/chris/OneDrive/Documents/Cape neto solutions/Clients/samson/v2/v3/src/app/api/auth/[...nextauth]/route.tsx\")",
       "Bash(rmdir \"C:/Users/chris/OneDrive/Documents/Cape neto solutions/Clients/samson/v2/v3/src/app/api/auth/[...nextauth]\")",
       "Bash(rmdir \"C:/Users/chris/OneDrive/Documents/Cape neto solutions/Clients/samson/v2/v3/src/app/api/auth\")",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git restore *)"
     ]
   }
 }
